@@ -1,6 +1,6 @@
 # SwagTS
 
-Scans Swagger Models folders to create TypeScript type definitions (d.ts)
+Scans Swagger-php Models folders to create TypeScript type definitions (d.ts). For reason yet unknown it relies on annotated php-models instead of JSON schema that swagger provides. 
 
 # Usage
 
