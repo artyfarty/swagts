@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+error_reporting(E_ERROR);
+$path = dirname(dirname(__FILE__));
+set_include_path(get_include_path() . PATH_SEPARATOR . $path);
+chdir($path);
+
+include "vendor/autoload.php";

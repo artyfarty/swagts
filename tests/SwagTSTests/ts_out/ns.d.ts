@@ -29,10 +29,4 @@ declare module TestClasses {
   export interface SubClass {
   }
 
-  declare module SubNS {
-    export interface SubNsClass {
-    }
-
-  }
-
 }

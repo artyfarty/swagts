@@ -5,20 +5,23 @@
 
 namespace SwagTS;
 
-
-use Doctrine\Common\Annotations\DocParser;
-use ReflectionClass;
-use ReflectionMethod;
 use Swagger\Annotations as SWG;
 
 class Writer {
-    protected $reader;
+    /**
+     * @var Providers\Base $provider
+     */
+    protected $provider;
     protected $config = [
         "indent" => "  "
     ];
 
-    public function __construct($config = []) {
-        $this->reader = new AnnotationReader;
+    /**
+     * @param Providers\Base $provider
+     * @param array $config
+     */
+    public function __construct($provider, $config = []) {
+        $this->provider = $provider;
     }
 
     protected function indent($code) {
@@ -47,28 +50,45 @@ class Writer {
         return $type;
     }
 
-    public function convertProperty(SWG\Property $prop) {
-        $type = $this->rewriteType($prop->type);
-        $name = $prop->name;
+    public function convertProperty($propName, $propInfo) {
+        $propInfo = array_merge(
+            [
+                'description' => null,
+                'items' => null,
+            ], $propInfo);
+
+        $getType = function($infoAarr) {
+            if (isset($infoAarr['type'])) {
+                return $infoAarr['type'];
+            }
+            if (isset($infoAarr['$ref'])) {
+                return $infoAarr['$ref'];
+            }
+
+            return null;
+        };
+
+        $type = $this->rewriteType($getType($propInfo));
         $result = "";
 
 
-        $has_ml_comment = (strpos($prop->description, "\n") !== false);
+        $has_ml_comment = (strpos($propInfo['description'], "\n") !== false);
 
         if ($has_ml_comment) {
             $result .= "/*\n";
-            foreach (explode("\n", $prop->description) as $s) {
+            foreach (explode("\n", $propInfo['description']) as $s) {
                 $s = trim($s);
                 $result .= " * $s\n";
             }
             $result .= " */\n";
         }
 
-        $result .= "{$name}: ";
+        $result .= "{$propName}: ";
 
         if ($type === 'array') {
-            if ($prop->items) {
-                $subtype = $this->rewriteType($prop->items->type);
+            if ($propInfo['items']) {
+                $subtype = $getType($propInfo['items']);
+                $subtype = $this->rewriteType($subtype);
 
                 $result .= "{$subtype}[]";
             } else {
@@ -80,36 +100,20 @@ class Writer {
 
         $result .= ";";
 
-        if (!$has_ml_comment && $prop->description) {
-            $result .= " // $prop->description";
+        if (!$has_ml_comment && $propInfo['description']) {
+            $result .= " // {$propInfo['description']}";
         }
 
         return $result;
     }
 
 
-    public function convertClass($className) {
-        $classReflect       = new ReflectionClass($className);
+    public function convertClass($classInfo) {
 
-        /** @var SWG\Model $model */
-        $model = $this->reader->getClassAnnotation($classReflect, 'Swagger\Annotations\Model');
+        $output = "export interface {$classInfo['id']} {\n";
 
-        if (!$model) {
-            throw new \Exception("$className has no SWG\\Model");
-        }
-
-        $modelName = $model->id;
-
-        $output = "export interface $modelName {\n";
-
-        foreach($classReflect->getProperties(\ReflectionProperty::IS_PUBLIC) as $propReflect) {
-            /** @var SWG\Property $property */
-            $property = $this->reader->getPropertyAnnotation($propReflect, 'Swagger\Annotations\Property');
-            if (!$property) {
-                continue;
-            }
-
-            $output .= $this->indent($this->convertProperty($property)) . "\n\n";
+        foreach($classInfo['properties'] as $propName => $propInfo) {
+            $output .= $this->indent($this->convertProperty($propName, $propInfo)) . "\n\n";
         }
 
         $output .= "}";
@@ -117,29 +121,13 @@ class Writer {
         return $output;
     }
 
-    /**
-     * @param \DirectoryIterator $d Directory to crawl
-     * @param string             $ns            Namespace that will become a module
-     * @param string             $nsPrefix      Namespace that contains the desired namespace
-     * @return string
-     * @throws \Exception
-     */
-    public function crawlDirectory(\DirectoryIterator $d, $ns, $nsPrefix = "\\") {
-        $output = "declare module $ns {\n";
+    public function makeModule($moduleName) {
+        $output = "declare module $moduleName {\n";
 
-        foreach($d as $fileInfo) {
-            if (strpos($fileInfo->getFilename(), '.') === 0) {
-                continue;
-            }
+        $classes = $this->provider->getClasses();
 
-            if ($fileInfo->getExtension() === 'php') {
-                $clsName = $fileInfo->getBasename('.php');
-                require_once $fileInfo->getPathname();
-                $output .= $this->indent($this->convertClass("{$nsPrefix}{$ns}\\$clsName")) . "\n\n";
-            } elseif ($fileInfo->isDir()) {
-                $nsName = $fileInfo->getBasename();
-                $output .=  $this->indent($this->crawlDirectory(new \DirectoryIterator($fileInfo->getPathname()), $nsName, "{$nsPrefix}$ns\\" )) . "\n\n";
-            }
+        foreach ($classes as $className => $classInfo) {
+            $output .= $this->indent($this->convertClass($classInfo)) . "\n\n";
         }
 
         $output .= "}";

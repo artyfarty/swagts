@@ -6,26 +6,15 @@
 namespace SwagTSTests;
 
 use PHPUnit_Framework_TestCase;
+use SwagTS\Providers\SwaggerPHP;
 use SwagTS\Writer;
 
 class WriterTest extends PHPUnit_Framework_TestCase {
-    public function testConvertClassSimple() {
-        $w = new Writer();
-        $expected = file_get_contents(__DIR__ . "/ts_out/single_class.d.ts");
-
-        $converted = $w->convertClass("SwagTSTests\\TestClasses\\SimpleClass");
-
-        $this->assertEquals($expected, $converted);
-    }
-
     public function testCrawlDirectory() {
-        $ns = "SwagTSTests\\TestClasses\\";
-        $dir = new \DirectoryIterator(__DIR__ . "/TestClasses");
-
-        $w = new Writer();
+        $w = new Writer(new SwaggerPHP(['directory' => __DIR__ . "/TestClasses", 'resource' => '/']));
         $expected = file_get_contents(__DIR__ . "/ts_out/ns.d.ts");
 
-        $converted = $w->crawlDirectory($dir, "TestClasses", "SwagTSTests\\");
+        $converted = $w->makeModule("TestClasses");
 
         $this->assertEquals($expected, $converted);
     }

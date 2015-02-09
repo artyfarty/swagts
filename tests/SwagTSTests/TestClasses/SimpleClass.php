@@ -1,8 +1,4 @@
 <?php
-/**
- * @author artyfarty
- */
-
 namespace SwagTSTests\TestClasses;
 
 /**
